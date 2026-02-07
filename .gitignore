@@ -1,0 +1,8 @@
+/target
+stats.json
+.env
+
+# Ignore generated SVGs in root, keep examples and cards assets
+/*.svg
+!examples/*.svg
+!cards/*.svg

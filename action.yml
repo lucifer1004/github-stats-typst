@@ -1,0 +1,157 @@
+name: "GitHub Stats Typst"
+description: "Generate beautiful GitHub stats cards using Typst"
+author: "lucifer1004"
+
+branding:
+  icon: "bar-chart-2"
+  color: "green"
+
+inputs:
+  username:
+    description: "GitHub username to fetch stats for"
+    required: true
+  token:
+    description: "GitHub token (PAT with read:user scope)"
+    required: false
+    default: ""
+  theme:
+    description: "Theme name: github, github-dark, dracula, monokai, nord, solarized-light, solarized-dark, gruvbox-dark, tokyo-night"
+    required: false
+    default: "github"
+  cards:
+    description: "Comma-separated list of cards to generate: profile,heatmap,timedist,pinned,language"
+    required: false
+    default: "profile,timedist"
+  output-dir:
+    description: "Directory to write SVG files"
+    required: false
+    default: "."
+  cli-version:
+    description: "Version of github-readme-stats CLI to use (e.g., v0.1.0, latest)"
+    required: false
+    default: "latest"
+
+outputs:
+  files:
+    description: "Comma-separated list of generated SVG files"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Typst
+      uses: typst-community/setup-typst@v4
+      with:
+        typst-version: "latest"
+
+    - name: Install github-readme-stats CLI
+      uses: jaxxstorm/action-install-gh-release@v2.1.0
+      with:
+        repo: lucifer1004/github-readme-stats
+        tag: ${{ inputs.cli-version == 'latest' && '' || inputs.cli-version }}
+        token: ${{ inputs.token || github.token }}
+        rename-to: github-readme-stats
+        chmod: 0755
+
+    - name: Fetch card templates
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token || github.token }}
+        CARDS: ${{ inputs.cards }}
+      run: |
+        set -euo pipefail
+
+        REPO="lucifer1004/github-stats-typst"
+
+        # Always use main for templates (they live in this repo)
+        REF="main"
+
+        # Download templates to a temp directory
+        TEMP_DIR=$(mktemp -d)
+        echo "Fetching default templates to $TEMP_DIR..."
+        auth_header=()
+        if [ -n "${GH_TOKEN:-}" ]; then
+          auth_header=(-H "Authorization: Bearer $GH_TOKEN")
+        fi
+
+        curl -sL "${auth_header[@]}" \
+          "https://github.com/$REPO/archive/$REF.tar.gz" | \
+          tar -xz -C "$TEMP_DIR" --strip-components=2 "github-stats-typst-${REF}/cards"
+
+        # Ensure local cards/ exists
+        mkdir -p cards
+
+        # Copy required shared files (themes.typ, common.typ, fork.svg)
+        for shared in themes.typ common.typ fork.svg; do
+          if [ -f "$TEMP_DIR/$shared" ] && [ ! -f "cards/$shared" ]; then
+            echo "Copying shared file: $shared"
+            cp "$TEMP_DIR/$shared" cards/
+          fi
+        done
+
+        # Copy missing card templates that are requested
+        IFS=',' read -ra CARD_LIST <<< "$CARDS"
+        for card in "${CARD_LIST[@]}"; do
+          card=$(echo "$card" | xargs)
+          if [ ! -f "cards/${card}.typ" ] && [ -f "$TEMP_DIR/${card}.typ" ]; then
+            echo "Using default template for: $card"
+            cp "$TEMP_DIR/${card}.typ" cards/
+          elif [ -f "cards/${card}.typ" ]; then
+            echo "Using local template for: $card"
+          fi
+        done
+
+        rm -rf "$TEMP_DIR"
+
+    - name: Fetch GitHub stats
+      shell: bash
+      env:
+        GHT: ${{ inputs.token || github.token }}
+      run: |
+        # CLI reads config from github-readme-stats.toml if present
+        github-readme-stats "${{ inputs.username }}" --output stats.json
+
+    - name: Render cards
+      id: render
+      shell: bash
+      env:
+        THEME: ${{ inputs.theme }}
+        CARDS: ${{ inputs.cards }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: |
+        set -euo pipefail
+
+        mkdir -p "$OUTPUT_DIR"
+
+        GENERATED_FILES=""
+
+        IFS=',' read -ra CARD_LIST <<< "$CARDS"
+        for card in "${CARD_LIST[@]}"; do
+          card=$(echo "$card" | xargs)  # trim whitespace
+
+          TEMPLATE="cards/${card}.typ"
+          if [ ! -f "$TEMPLATE" ]; then
+            echo "Warning: Template $TEMPLATE not found, skipping"
+            continue
+          fi
+
+          OUTPUT_FILE="${OUTPUT_DIR}/${card}.svg"
+
+          echo "Rendering $card -> $OUTPUT_FILE"
+          typst compile "$TEMPLATE" "$OUTPUT_FILE" \
+            --root . \
+            --input theme="$THEME" \
+            --input stats="/stats.json"
+
+          if [ -n "$GENERATED_FILES" ]; then
+            GENERATED_FILES="${GENERATED_FILES},"
+          fi
+          GENERATED_FILES="${GENERATED_FILES}${OUTPUT_FILE}"
+        done
+
+        echo "files=$GENERATED_FILES" >> "$GITHUB_OUTPUT"
+        echo "Generated: $GENERATED_FILES"
+
+    - name: Cleanup
+      shell: bash
+      run: |
+        rm -f stats.json
