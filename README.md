@@ -138,7 +138,7 @@ cards: profile,timedist,heatmap,pinned,language
 | `timedist` | When you commit (24h × 7 days heatmap)       |
 | `heatmap`  | GitHub-style contribution calendar           |
 | `pinned`   | Highlighted repositories                     |
-| `language` | Top languages by commit changes              |
+| `language` | Top languages by weighted commit changes     |
 
 ---
 
@@ -154,7 +154,9 @@ timezone = "+08:00"  # Timezone for commit time analysis
 pinned = ["owner/repo1", "owner/repo2"]  # Repos to highlight
 
 [language]
-commits_limit = 1000  # Commits to sample for language stats
+commits_limit = 5000  # Max commits to sample in total (0 = unlimited)
+commits_per_repo = 1000  # Max commits per repository (0 = unlimited)
+repos_limit = 100  # Max contributed repositories to sample (0 = unlimited)
 top_n = 10  # Number of top languages
 exclude = ["HTML", "CSS"]  # Languages to exclude
 ```

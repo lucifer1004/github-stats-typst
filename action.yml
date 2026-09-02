@@ -47,7 +47,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Typst
-      uses: typst-community/setup-typst@v4
+      uses: typst-community/setup-typst@v5
       with:
         typst-version: "latest"
 
@@ -98,7 +98,7 @@ runs:
         echo "Font installed to $FONT_DIR"
 
     - name: Install github-readme-stats CLI
-      uses: jaxxstorm/action-install-gh-release@v2.1.0
+      uses: jaxxstorm/action-install-gh-release@v3.0.0
       with:
         repo: lucifer1004/github-readme-stats
         tag: ${{ inputs.cli-version == 'latest' && '' || inputs.cli-version }}

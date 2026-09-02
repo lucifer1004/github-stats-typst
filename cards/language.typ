@@ -1,9 +1,9 @@
 // Language usage card — horizontal bar chart
 //
-// Shows top languages by commit changes:
+// Shows top languages by log-weighted commit changes:
 // - Color-coded bars matching GitHub language colors
-// - Percentage of total changes
-// - Summary: language count, top language, total changes
+// - Percentage of total weight
+// - Summary: language count, top language, sampled commits
 
 #import "common.typ": theme, stats, conf, format-number, card-frame
 
@@ -153,12 +153,7 @@
 
   let total-langs = languages.len()
   let top-lang = if languages.len() > 0 { languages.at(0).at("name", default: "N/A") } else { "N/A" }
-
-  // Calculate total changes
-  let total-changes = 0
-  for lang in languages {
-    total-changes = total-changes + lang.at("changes", default: 0)
-  }
+  let sampled = stats.at("language_sampled_commits", default: 0)
 
   grid(
     columns: (1fr, 1fr, 1fr),
@@ -174,9 +169,9 @@
       #text(weight: "bold", size: 14pt)[#top-lang]
     ],
     [
-      #text(size: 8pt, fill: theme.dim)[Total Changes]
+      #text(size: 8pt, fill: theme.dim)[Sampled Commits]
       #linebreak()
-      #text(weight: "bold", size: 14pt)[#format-number(total-changes)]
+      #text(weight: "bold", size: 14pt)[#format-number(sampled)]
     ],
   )
 }
